@@ -285,12 +285,21 @@ tool_role_conversions = {
 }
 
 
+def _sanitize_tool_json_schema(schema: Any) -> None:
+    if isinstance(schema, dict):
+        if schema.get("type") == "any":
+            schema["type"] = "string"
+        for value in schema.values():
+            _sanitize_tool_json_schema(value)
+    elif isinstance(schema, list):
+        for value in schema:
+            _sanitize_tool_json_schema(value)
+
+
 def get_tool_json_schema(tool: Tool) -> dict:
     properties = deepcopy(tool.inputs)
     required = []
     for key, value in properties.items():
-        if value["type"] == "any":
-            value["type"] = "string"
         if not ("nullable" in value and value["nullable"]):
             required.append(key)
 
@@ -314,6 +323,8 @@ def get_tool_json_schema(tool: Tool) -> dict:
                 value["enum"] = enum
 
             value.pop("anyOf")
+
+        _sanitize_tool_json_schema(value)
 
     return {
         "type": "function",
