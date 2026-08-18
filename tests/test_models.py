@@ -230,6 +230,8 @@ class TestModel:
             mapping: dict[str, Any],
             pairs: tuple[Any, str],
             nested: list[dict[str, Any]],
+            choice: Any | int,
+            optional_mapping: dict[str, Any] | None = None,
         ) -> str:
             """Process nested values.
 
@@ -238,6 +240,8 @@ class TestModel:
                 mapping: Values keyed by name.
                 pairs: A pair of values.
                 nested: Nested mappings to process.
+                choice: An unconstrained value or an integer.
+                optional_mapping: An optional mapping keyed by name.
             """
             return "processed"
 
@@ -248,7 +252,32 @@ class TestModel:
         assert properties["mapping"]["additionalProperties"]["type"] == "string"
         assert properties["pairs"]["prefixItems"][0]["type"] == "string"
         assert properties["nested"]["items"]["additionalProperties"]["type"] == "string"
+        assert set(properties["choice"]["type"]) == {"integer", "string"}
+        assert properties["optional_mapping"]["additionalProperties"]["type"] == "string"
+        assert properties["optional_mapping"]["nullable"] is True
+        assert "optional_mapping" not in schema["function"]["parameters"]["required"]
         assert '"any"' not in json.dumps(schema)
+
+    def test_get_tool_json_schema_preserves_data_payloads(self):
+        tool = MagicMock()
+        tool.name = "process_payload"
+        tool.description = "Process an object with schema-like payload data."
+        tool.inputs = {
+            "payload": {
+                "type": "object",
+                "properties": {"value": {"type": "any"}},
+                "default": {"type": "any"},
+                "examples": [{"type": "any"}],
+                "enum": [{"type": "any"}],
+            }
+        }
+
+        payload_schema = get_tool_json_schema(tool)["function"]["parameters"]["properties"]["payload"]
+
+        assert payload_schema["properties"]["value"]["type"] == "string"
+        assert payload_schema["default"] == {"type": "any"}
+        assert payload_schema["examples"] == [{"type": "any"}]
+        assert payload_schema["enum"] == [{"type": "any"}]
 
     def test_chatmessage_has_model_dumps_json(self):
         message = ChatMessage("user", [{"type": "text", "text": "Hello!"}])
